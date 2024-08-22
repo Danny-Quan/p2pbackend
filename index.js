@@ -47,16 +47,17 @@ const io = new Server(server, {
 });
 
 const rooms = new Map();
+let connectedUsers = {}; // Store all connected users
 
 // Endpoint for admin to create a room
-app.post('/create-room', (req, res) => {
+app.post("/create-room", (req, res) => {
   const { groupId } = req.body;
   if (!groupId) {
-      return res.status(400).json({ error: 'Group ID is required' });
+    return res.status(400).json({ error: "Group ID is required" });
   }
 
   if (rooms.has(groupId)) {
-      return res.status(400).json({ error: 'Group already exist' });
+    return res.status(400).json({ error: "Group already exist" });
   }
 
   rooms.set(groupId, { users: new Set() });
@@ -67,10 +68,14 @@ app.post('/create-room', (req, res) => {
 //connecting socket
 io.on("connection", (socket) => {
   console.log("user connected with ID: " + socket.id);
+  connectedUsers[socket.id] = socket.id;
 
-  socket.on("join_room", ({ username, groupId },callback) => {
+  // Notify all clients of the updated user list
+  io.emit('user-list', Object.values(connectedUsers));
+
+  socket.on("join_room", ({ username, groupId }, callback) => {
     if (!rooms.has(groupId)) {
-      return callback({ error: 'Group Id does not exist' });
+      return callback({ error: "Group Id does not exist" });
     }
     // rooms.get(groupId).add(username);
     const room = rooms.get(groupId);
@@ -80,23 +85,23 @@ io.on("connection", (socket) => {
     console.log(`User with ID: ${socket.id} joined room: ${groupId}`);
     io.to(groupId).emit("updateUsers", Array.from(room.users));
 
-    callback({success:'Joined Group'})
+    callback({ success: "Joined Group" });
   });
 
-  
-  socket.on('leave_group', ({ groupId, username }) => {
+  socket.on("leave_group", ({ groupId, username }) => {
     if (rooms.has(groupId)) {
       const room = rooms.get(groupId);
       room.users.delete(username);
       if (room.users.size === 0) {
-          rooms.delete(groupId);
+        rooms.delete(groupId);
       } else {
-          io.to(groupId).emit('updateUsers', Array.from(room.users));
+        io.to(groupId).emit("updateUsers", Array.from(room.users));
       }
-  }
-  socket.leave(groupId);
-  console.log(`${username} left room: ${groupId}`);
-});
+    }
+    socket.leave(groupId);
+    console.log(`${username} left room: ${groupId}`);
+  });
+
 
 
   socket.on("send_message", (data) => {
@@ -104,20 +109,41 @@ io.on("connection", (socket) => {
     // console.log(data)
   });
 
-  socket.on('disconnect', () => {
+  socket.on("disconnect", () => {
+    delete connectedUsers[socket.id];
+        io.emit('user-list', Object.values(connectedUsers));
+
     rooms.forEach((room, groupId) => {
-        room.users.forEach((user) => {
-            if (user.socketId === socket.id) {
-                room.users.delete(user);
-                io.to(groupId).emit('updateUsers', Array.from(room.users));
-                if (room.users.size === 0) {
-                    rooms.delete(groupId);
-                }
-            }
-        });
+      room.users.forEach((user) => {
+        if (user.socketId === socket.id) {
+          room.users.delete(user);
+          io.to(groupId).emit("updateUsers", Array.from(room.users));
+          if (room.users.size === 0) {
+            rooms.delete(groupId);
+          }
+        }
+      });
     });
-    console.log('Client disconnected');
+    console.log("Client disconnected");
+  });
+
+  socket.on('request-private-chat', ({ toUserId, fromUserId }) => {
+    // Send the chat request to the specified user
+    io.to(toUserId).emit('private-chat-request', { fromUserId });
 });
+
+socket.on('accept-private-chat', ({ toUserId, fromUserId }) => {
+  const roomId = `${fromUserId}-${toUserId}`;
+  socket.join(roomId);
+  io.to(toUserId).emit('private-chat-accepted', { chatUser: fromUserId, roomId });
+  io.to(fromUserId).emit('private-chat-accepted', { chatUser: toUserId, roomId });
+});
+
+   // Handle private messages
+   socket.on('private-message', ({ roomId, fromUserId, message }) => {
+    io.to(roomId).emit('receive-private-message', { fromUserId, message });
+});
+
 
 });
 

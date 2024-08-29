@@ -140,8 +140,8 @@ socket.on('accept-private-chat', ({ toUserId, fromUserId }) => {
 });
 
    // Handle private messages
-   socket.on('private-message', ({ roomId, fromUserId, message }) => {
-    io.to(roomId).emit('receive-private-message', { fromUserId, message });
+   socket.on('private-message', ({ roomId,  message }) => {
+    socket.to(roomId).emit('receive-private-message',   message );
 });
 
 

@@ -71,7 +71,7 @@ io.on("connection", (socket) => {
   connectedUsers[socket.id] = socket.id;
 
   // Notify all clients of the updated user list
-  io.emit('user-list', Object.values(connectedUsers));
+  io.emit("user-list", Object.values(connectedUsers));
 
   socket.on("join_room", ({ username, groupId }, callback) => {
     if (!rooms.has(groupId)) {
@@ -102,8 +102,6 @@ io.on("connection", (socket) => {
     console.log(`${username} left room: ${groupId}`);
   });
 
-
-
   socket.on("send_message", (data) => {
     socket.to(data.room).emit("receive_message", data);
     // console.log(data)
@@ -111,7 +109,7 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     delete connectedUsers[socket.id];
-        io.emit('user-list', Object.values(connectedUsers));
+    io.emit("user-list", Object.values(connectedUsers));
 
     rooms.forEach((room, groupId) => {
       room.users.forEach((user) => {
@@ -127,24 +125,35 @@ io.on("connection", (socket) => {
     console.log("Client disconnected");
   });
 
-  socket.on('request-private-chat', ({ toUserId, fromUserId }) => {
-    // Send the chat request to the specified user
-    io.to(toUserId).emit('private-chat-request', { fromUserId });
-});
+  // Handle private chat requests
+  socket.on("request-private-chat", ({ toUserId, fromUserId }) => {
+    io.to(toUserId).emit("private-chat-request", { fromUserId });
+  });
 
-socket.on('accept-private-chat', ({ toUserId, fromUserId }) => {
-  const roomId = `${fromUserId}-${toUserId}`;
-  socket.join(roomId);
-  io.to(toUserId).emit('private-chat-accepted', { chatUser: fromUserId, roomId });
-  io.to(fromUserId).emit('private-chat-accepted', { chatUser: toUserId, roomId });
-});
+  // Handle acceptance of private chat requests
+  socket.on("accept-private-chat", ({ toUserId, fromUserId }) => {
+    const roomId = `${fromUserId}-${toUserId}`;
+    // Ensure both users join the same room
+    socket.join(roomId);
+    io.to(toUserId).socketsJoin(roomId); // Make sure the recipient joins the room
+    io.to(fromUserId).socketsJoin(roomId); // Make sure the sender joins the room
 
-   // Handle private messages
-   socket.on('private-message', ({ roomId,  message }) => {
-    socket.to(roomId).emit('receive-private-message',   message );
-});
+    // Notify both users that the chat has been accepted
+    io.to(toUserId).emit("private-chat-accepted", {
+      chatUser: fromUserId,
+      roomId,
+    });
+    io.to(fromUserId).emit("private-chat-accepted", {
+      chatUser: toUserId,
+      roomId,
+    });
+  });
 
-
+  // Handle private messages
+  // Handle private messages
+  socket.on("private-message", ({ roomId, fromUserId, message }) => {
+    socket.to(roomId).emit("receive-private-message", { fromUserId, message });
+  });
 });
 
 server.listen(process.env.PORT || 5000, (err, data) => {

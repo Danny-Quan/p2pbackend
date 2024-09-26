@@ -4,12 +4,14 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const mongoose = require("mongoose");
 const http = require("http");
+const path = require("path");
 const app = express();
 dotenv.config({ path: "./config.env" });
 
 const server = http.createServer(app);
 const { Server } = require("socket.io");
 
+app.use(express.static(path.join(__dirname, "public/build")));
 app.use(express.json());
 app.use(cookieParser());
 app.use(
@@ -170,6 +172,12 @@ io.on("connection", (socket) => {
       .to(roomId)
       .emit("receive-private-message", { fromUsername, message });
   });
+});
+
+
+
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "public/build", "index.html"));
 });
 
 server.listen(process.env.PORT || 5000, (err, data) => {

@@ -16,7 +16,7 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: "https://p2pbackend-1ele.onrender.com",
     credentials: true,
     methods: ["GET", "POST"],
   })
@@ -43,7 +43,7 @@ app.get("/", (req, res) => {
 
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:3000",
+    origin: "https://p2pbackend-1ele.onrender.com",
     methods: ["GET", "POST"],
   },
 });
